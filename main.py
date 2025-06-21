@@ -18,32 +18,6 @@ from fpdf import FPDF
 # 3. Python libraries (see requirements.txt section below).
 
 # --- 1. Document Processing and OCR ---
-
-def extract_text_from_pdf(pdf_path):
-    """
-    Extracts text from a PDF file.
-    It first tries to extract text directly. If the text is short (indicating a scanned PDF),
-    it falls back to OCR.
-    """
-    text = ""
-    try:
-        doc = fitz.open(pdf_path)
-        for page in doc:
-            text += page.get_text("text")
-        doc.close()
-
-        # If direct extraction yields very little text, it might be a scanned PDF
-        if len(text.strip()) < 100:
-            print(f"Direct text extraction for {pdf_path} resulted in short text. Attempting OCR.")
-            text = ocr_pdf(pdf_path)
-
-    except Exception as e:
-        print(f"Could not read {pdf_path} with PyMuPDF. Attempting OCR. Error: {e}")
-        text = ocr_pdf(pdf_path)
-
-    return text
-
-
 def ocr_pdf(pdf_path):
     """Performs OCR on each page of a PDF."""
     text = ""
@@ -79,21 +53,6 @@ def chunk_text_by_sentence(text, sentences_per_chunk=1):
         chunks.append(chunk)
 
     return chunks
-
-
-def convert_text_into_pdf(input_text_file, output_pdf_file):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Helvetica", size=15)
-
-    f = open(input_text_file, "r")
-
-    for x in f:
-        pdf.cell(200, 10, text=x, ln=1, align='C')
-
-    pdf.output(output_pdf_file)
-
-    print(f"Successfully created multi-page PDF: '{output_pdf_file}'")
 
 
 # --- 3. Sentence-Transformers Embeddings ---
@@ -156,14 +115,11 @@ def main():
     embedding_dim = 384  # Dimension for 'all-MiniLM-L6-v2'
     similarity_searcher = SimilaritySearch(embedding_dim)
 
-    #convert_text_into_pdf("source_docs/source_text.txt", "source_docs/source-document.pdf")
-    #convert_text_into_pdf("suspect_docs/suspicious-text.txt", "suspect_docs/suspicious-document.pdf")
-
     # --- Indexing Source Documents ---
     print("\n--- Indexing Source Documents ---")
     source_doc_path = "source_docs/source_document.pdf"
     print(f"Processing {source_doc_path}...")
-    text = extract_text_from_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
+    text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
     chunks = chunk_text_by_sentence(text)
     if chunks:
         embeddings = embedder.get_embeddings(chunks)
@@ -175,7 +131,7 @@ def main():
     print("\n--- Checking Suspect Document for Plagiarism ---")
     suspect_path = "suspect_docs/plagiarized_document.pdf"
 
-    suspect_text = extract_text_from_pdf(suspect_path)
+    suspect_text = ocr_pdf(suspect_path)
     suspect_chunks = chunk_text_by_sentence(suspect_text)
 
     if not suspect_chunks:
