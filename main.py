@@ -6,7 +6,7 @@ import faiss
 from sentence_transformers import SentenceTransformer
 import os
 import nltk
-from fpdf import FPDF
+import cv2
 
 
 # --- Installation ---
@@ -26,8 +26,9 @@ def ocr_pdf(pdf_path):
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
             pix = page.get_pixmap()
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            text += pytesseract.image_to_string(img)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            preprocessed_img = preprocess_image(img)
+            text += pytesseract.image_to_string(preprocessed_img)
         doc.close()
     except Exception as e:
         print(f"OCR failed for {pdf_path}. Error: {e}")
@@ -104,6 +105,28 @@ class SimilaritySearch:
         return distances, indices
 
 
+def preprocess_image(pil_img):
+    """Convert PIL image to OpenCV format and apply preprocessing."""
+    # Convert PIL image to OpenCV format
+    img = np.array(pil_img)
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    # Resize to improve DPI (simulate 300+ dpi if needed)
+    scale_percent = 150  # e.g., 150% zoom
+    width = int(img.shape[1] * scale_percent / 100)
+    height = int(img.shape[0] * scale_percent / 100)
+    img = cv2.resize(img, (width, height), interpolation=cv2.INTER_CUBIC)
+
+    # Apply adaptive thresholding
+    img = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                cv2.THRESH_BINARY, 15, 10)
+
+    # Optional: apply denoising
+    img = cv2.fastNlMeansDenoising(img, h=30)
+
+    return Image.fromarray(img)
+
+
 # --- Main Prototype ---
 
 def main():
@@ -112,12 +135,11 @@ def main():
 
     print("Initializing Sentence Embedder...")
     embedder = SentenceEmbedder(model_name='all-MiniLM-L6-v2')
-    embedding_dim = 384  # Dimension for 'all-MiniLM-L6-v2'
-    similarity_searcher = SimilaritySearch(embedding_dim)
+    similarity_searcher = SimilaritySearch(384)
 
     # --- Indexing Source Documents ---
     print("\n--- Indexing Source Documents ---")
-    source_doc_path = "source_docs/source_document.pdf"
+    source_doc_path = "source_docs/source_document_PTBR.pdf"
     print(f"Processing {source_doc_path}...")
     text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
     chunks = chunk_text_by_sentence(text)
@@ -129,7 +151,7 @@ def main():
 
     # --- Checking a Suspect Document ---
     print("\n--- Checking Suspect Document for Plagiarism ---")
-    suspect_path = "suspect_docs/plagiarized_document.pdf"
+    suspect_path = "suspect_docs/plagiarized_document_PTBR.pdf"
 
     suspect_text = ocr_pdf(suspect_path)
     suspect_chunks = chunk_text_by_sentence(suspect_text)
