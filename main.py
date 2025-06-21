@@ -156,12 +156,12 @@ def main():
     embedding_dim = 384  # Dimension for 'all-MiniLM-L6-v2'
     similarity_searcher = SimilaritySearch(embedding_dim)
 
-    convert_text_into_pdf("source_docs/source-document00231.txt", "source_docs/source-document.pdf")
-    convert_text_into_pdf("suspect_docs/suspicious-document00231.txt", "suspect_docs/suspicious-document.pdf")
+    #convert_text_into_pdf("source_docs/source_text.txt", "source_docs/source-document.pdf")
+    #convert_text_into_pdf("suspect_docs/suspicious-text.txt", "suspect_docs/suspicious-document.pdf")
 
     # --- Indexing Source Documents ---
     print("\n--- Indexing Source Documents ---")
-    source_doc_path = "source_docs/source-document.pdf"
+    source_doc_path = "source_docs/source_document.pdf"
     print(f"Processing {source_doc_path}...")
     text = extract_text_from_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
     chunks = chunk_text_by_sentence(text)
@@ -173,7 +173,7 @@ def main():
 
     # --- Checking a Suspect Document ---
     print("\n--- Checking Suspect Document for Plagiarism ---")
-    suspect_path = "suspect_docs/suspicious-document.pdf"
+    suspect_path = "suspect_docs/plagiarized_document.pdf"
 
     suspect_text = extract_text_from_pdf(suspect_path)
     suspect_chunks = chunk_text_by_sentence(suspect_text)
@@ -181,6 +181,10 @@ def main():
     if not suspect_chunks:
         print("No text could be extracted from the suspect document.")
         return
+
+    for suspect_chunk in suspect_chunks:
+        if len(suspect_chunk.split()) < 3:
+            suspect_chunks.remove(suspect_chunk)
 
     suspect_embeddings = embedder.get_embeddings(suspect_chunks)
 
@@ -193,13 +197,14 @@ def main():
     print("=" * 50)
     # L2 distance threshold for normalized vectors. A smaller value means higher similarity.
     threshold = 0.6
-
+    similar_chunks = []
     for i, chunk in enumerate(suspect_chunks):
         dist = distances[i][0]
 
         if dist < threshold:
             idx = indices[i][0]
             similar_chunk_info = similarity_searcher.chunk_map[idx]
+            similar_chunks.append(similar_chunk_info)
             # For normalized vectors, cosine similarity = 1 - (L2_distance^2 / 2)
             cosine_similarity = 1 - (dist ** 2 / 2)
 
@@ -208,6 +213,8 @@ def main():
             print(f"  Source Document:    '{similar_chunk_info['doc']}'")
             print(f"  Similar Source Chunk: '{similar_chunk_info['chunk']}'")
             print(f"  Cosine Similarity:  {cosine_similarity:.4f} (L2 Distance: {dist:.4f})\n")
+    if len(similar_chunks) == 0:
+        print("No Plagiarism Found!\n")
 
 
 if __name__ == '__main__':
