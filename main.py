@@ -111,7 +111,7 @@ def preprocess_image(pil_img):
     img = np.array(pil_img)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    # Resize to improve DPI (simulate 300+ dpi if needed)
+    # Resize to improve DPI (Dots Per Inch)
     scale_percent = 150  # e.g., 150% zoom
     width = int(img.shape[1] * scale_percent / 100)
     height = int(img.shape[0] * scale_percent / 100)
@@ -139,7 +139,7 @@ def main():
 
     # --- Indexing Source Documents ---
     print("\n--- Indexing Source Documents ---")
-    source_doc_path = "source_docs/source_document_PTBR.pdf"
+    source_doc_path = "source_docs/source_document.pdf"
     print(f"Processing {source_doc_path}...")
     text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
     chunks = chunk_text_by_sentence(text)
@@ -151,7 +151,7 @@ def main():
 
     # --- Checking a Suspect Document ---
     print("\n--- Checking Suspect Document for Plagiarism ---")
-    suspect_path = "suspect_docs/plagiarized_document_PTBR.pdf"
+    suspect_path = "suspect_docs/plagiarized_document.pdf"
 
     suspect_text = ocr_pdf(suspect_path)
     suspect_chunks = chunk_text_by_sentence(suspect_text)
