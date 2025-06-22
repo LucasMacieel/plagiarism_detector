@@ -5,7 +5,6 @@ import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
 import os
-import nltk
 import cv2
 import spacy
 
@@ -35,11 +34,28 @@ def transformer_sentence_split(text):
     doc = nlp(text)
     return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
 
-def chunk_text_by_sentence(text, sentences_per_chunk=3):
+def determine_sentences_per_chunk(sentences, target_words_per_chunk=50, max_sentences_per_chunk=5):
+    """
+    Dynamically determines sentences_per_chunk based on sentence length and count.
+    """
+    if not sentences:
+        return 1
+
+    total_words = sum(len(s.split()) for s in sentences)
+    avg_words_per_sentence = total_words / len(sentences)
+
+    # Estimate how many sentences needed to approach the target chunk size
+    estimated_sentences = target_words_per_chunk / max(avg_words_per_sentence, 1)
+
+    # Constraint bounds
+    return max(1, min(int(round(estimated_sentences)), max_sentences_per_chunk))
+
+def chunk_text_by_sentence(text, target_words_per_chunk=50, max_sentences_per_chunk=5):
     """
     Splits text into sentences and then groups them into chunks.
     """
     sentences = transformer_sentence_split(text)
+    sentences_per_chunk = determine_sentences_per_chunk(sentences, target_words_per_chunk, max_sentences_per_chunk)
     chunks = [" ".join(sentences[i:i + sentences_per_chunk]) for i in range(0, len(sentences), sentences_per_chunk)]
     return chunks
 
