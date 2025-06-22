@@ -7,15 +7,9 @@ from sentence_transformers import SentenceTransformer
 import os
 import nltk
 import cv2
+import spacy
 
-
-# --- Installation ---
-# 1. Tesseract-OCR engine: https://github.com/tesseract-ocr/tesseract
-# 2. NLTK's sentence tokenizer data (run this once in a Python interpreter):
-#    import nltk
-#    nltk.download('punkt')
-#    nltk.download('punkt_tab')
-# 3. Python libraries (see requirements.txt section below).
+nlp = spacy.load("en_core_web_sm")
 
 # --- 1. Document Processing and OCR ---
 def ocr_pdf(pdf_path):
@@ -36,28 +30,21 @@ def ocr_pdf(pdf_path):
 
 
 # --- 2. Text Preprocessing (Sentence-Aware) ---
+def transformer_sentence_split(text):
+    text = text.replace('\n', ' ')
+    doc = nlp(text)
+    return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
 
-def chunk_text_by_sentence(text, sentences_per_chunk=1):
+def chunk_text_by_sentence(text, sentences_per_chunk=3):
     """
     Splits text into sentences and then groups them into chunks.
     """
-    # First, split the text into sentences
-    sentences = nltk.sent_tokenize(text)
-
-    # Clean up sentences
-    sentences = [s.strip().replace("\n", " ") for s in sentences if s.strip()]
-
-    # Group sentences into chunks
-    chunks = []
-    for i in range(0, len(sentences), sentences_per_chunk):
-        chunk = " ".join(sentences[i:i + sentences_per_chunk])
-        chunks.append(chunk)
-
+    sentences = transformer_sentence_split(text)
+    chunks = [" ".join(sentences[i:i + sentences_per_chunk]) for i in range(0, len(sentences), sentences_per_chunk)]
     return chunks
 
 
 # --- 3. Sentence-Transformers Embeddings ---
-
 class SentenceEmbedder:
     def __init__(self, model_name='all-MiniLM-L6-v2'):
         """
@@ -75,7 +62,6 @@ class SentenceEmbedder:
 
 
 # --- 4. Faiss Similarity Search ---
-
 class SimilaritySearch:
     def __init__(self, dimension):
         self.index = faiss.IndexFlatL2(dimension)
@@ -131,7 +117,6 @@ def preprocess_image(pil_img):
 
 def main():
     # --- Setup ---
-    nltk.data.find('tokenizers/punkt')
 
     print("Initializing Sentence Embedder...")
     embedder = SentenceEmbedder(model_name='all-MiniLM-L6-v2')
@@ -141,8 +126,8 @@ def main():
     print("\n--- Indexing Source Documents ---")
     source_doc_path = "source_docs/source_document.pdf"
     print(f"Processing {source_doc_path}...")
-    text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
-    chunks = chunk_text_by_sentence(text)
+    source_text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
+    chunks = chunk_text_by_sentence(source_text)
     if chunks:
         embeddings = embedder.get_embeddings(chunks)
         similarity_searcher.build_index(embeddings, chunks, os.path.basename(source_doc_path))
@@ -151,7 +136,7 @@ def main():
 
     # --- Checking a Suspect Document ---
     print("\n--- Checking Suspect Document for Plagiarism ---")
-    suspect_path = "suspect_docs/plagiarized_document.pdf"
+    suspect_path = "suspect_docs/direct-plagiarism.pdf"
 
     suspect_text = ocr_pdf(suspect_path)
     suspect_chunks = chunk_text_by_sentence(suspect_text)
@@ -159,10 +144,6 @@ def main():
     if not suspect_chunks:
         print("No text could be extracted from the suspect document.")
         return
-
-    for suspect_chunk in suspect_chunks:
-        if len(suspect_chunk.split()) < 3:
-            suspect_chunks.remove(suspect_chunk)
 
     suspect_embeddings = embedder.get_embeddings(suspect_chunks)
 
