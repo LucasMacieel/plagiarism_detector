@@ -1,7 +1,8 @@
 PyMuPDF
 pytesseract
 Pillow
+numpy
 faiss-cpu
 sentence-transformers
-numpy
-nltk
+opencv-python
+spacy

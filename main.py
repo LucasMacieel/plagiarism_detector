@@ -8,6 +8,7 @@ import os
 import cv2
 import spacy
 
+# python -m spacy download en_core_web_sm
 nlp = spacy.load("en_core_web_sm")
 
 # --- 1. Document Processing and OCR ---
