@@ -1,0 +1,35 @@
+/* Sets the base font for the entire document */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Hides the default file input button ("Choose File") */
+.custom-file-input::-webkit-file-upload-button {
+    visibility: hidden;
+}
+
+/* Styles a custom button to replace the default file input button */
+.custom-file-input::before {
+    content: 'Select file'; /* Text for the custom button */
+    display: inline-block;
+    background: #1F2937; /* Same as Tailwind's bg-gray-800 */
+    color: white;
+    border-radius: 0.25rem; /* Rounded corners */
+    padding: 0.5rem 1rem; /* Padding inside the button */
+    outline: none;
+    white-space: nowrap; /* Prevents text from wrapping */
+    -webkit-user-select: none; /* Prevents text selection */
+    user-select: none;
+    cursor: pointer; /* Changes cursor to a pointer on hover */
+    font-weight: 500;
+}
+
+/* Style for the custom button on hover */
+.custom-file-input:hover::before {
+    background: #374151; /* Same as Tailwind's bg-gray-700 */
+}
+
+/* Style for the custom button when it's active (clicked) */
+.custom-file-input:active::before {
+    background: #4B5563; /* Same as Tailwind's bg-gray-600 */
+}
