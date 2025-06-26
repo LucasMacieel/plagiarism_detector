@@ -9,7 +9,7 @@ import cv2
 import spacy
 
 # python -m spacy download en_core_web_sm
-nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "tagger", "attribute_ruler"])
 
 # --- 1. Document Processing and OCR ---
 def ocr_pdf(pdf_path):
@@ -35,29 +35,58 @@ def transformer_sentence_split(text):
     doc = nlp(text)
     return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
 
-def determine_sentences_per_chunk(sentences, target_words_per_chunk=50, max_sentences_per_chunk=5):
-    """
-    Dynamically determines sentences_per_chunk based on sentence length and count.
-    """
-    if not sentences:
-        return 1
-
-    total_words = sum(len(s.split()) for s in sentences)
-    avg_words_per_sentence = total_words / len(sentences)
-
-    # Estimate how many sentences needed to approach the target chunk size
-    estimated_sentences = target_words_per_chunk / max(avg_words_per_sentence, 1)
-
-    # Constraint bounds
-    return max(1, min(int(round(estimated_sentences)), max_sentences_per_chunk))
 
 def chunk_text_by_sentence(text, target_words_per_chunk=50, max_sentences_per_chunk=5):
     """
     Splits text into sentences and then groups them into chunks.
+    Handles very long texts by processing them in batches to stay within spaCy's memory limits.
     """
-    sentences = transformer_sentence_split(text)
-    sentences_per_chunk = determine_sentences_per_chunk(sentences, target_words_per_chunk, max_sentences_per_chunk)
-    chunks = [" ".join(sentences[i:i + sentences_per_chunk]) for i in range(0, len(sentences), sentences_per_chunk)]
+    # spaCy's default character limit.
+    spacy_max_length = 1000000
+    all_sentences = []
+
+    # If the text is smaller than the limit, process it directly
+    if len(text) < spacy_max_length:
+        doc = nlp(text)
+        all_sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+    else:
+        # If the text is too long, split it into smaller "pre-chunks"
+        print(f"  -> Text is too long ({len(text)} chars). Processing in batches.")
+        start = 0
+        while start < len(text):
+            # Process text in chunks of size spacy_max_length
+            chunk = text[start: start + spacy_max_length]
+
+            # Ensure we don't split a word at the end of the chunk
+            # Find the last space to make a clean break
+            if len(chunk) == spacy_max_length and start + spacy_max_length < len(text):
+                last_space = chunk.rfind(' ')
+                if last_space != -1:
+                    chunk = chunk[:last_space]
+
+            doc = nlp(chunk)
+            chunk_sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+            all_sentences.extend(chunk_sentences)
+
+            # Move the starting point for the next chunk
+            start += len(chunk)
+
+    # Now, group the collected sentences into the final chunks for plagiarism detection
+    if not all_sentences:
+        return []
+
+    # The logic for grouping sentences remains the same
+    def determine_sentences_per_chunk(sentences, target, max_sentences):
+        if not sentences: return 1
+        total_words = sum(len(s.split()) for s in sentences)
+        avg_words = total_words / len(sentences)
+        estimated = target / max(avg_words, 1)
+        return max(1, min(int(round(estimated)), max_sentences))
+
+    sentences_per_chunk = determine_sentences_per_chunk(all_sentences, target_words_per_chunk, max_sentences_per_chunk)
+    chunks = [" ".join(all_sentences[i:i + sentences_per_chunk]) for i in
+              range(0, len(all_sentences), sentences_per_chunk)]
+
     return chunks
 
 
@@ -141,7 +170,7 @@ def main():
 
     # --- Indexing Source Documents ---
     print("\n--- Indexing Source Documents ---")
-    source_doc_path = "source_docs/source_document.pdf"
+    source_doc_path = "source_docs/source-document01474.txt"
     print(f"Processing {source_doc_path}...")
     source_text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
     chunks = chunk_text_by_sentence(source_text)
@@ -153,7 +182,7 @@ def main():
 
     # --- Checking a Suspect Document ---
     print("\n--- Checking Suspect Document for Plagiarism ---")
-    suspect_path = "suspect_docs/direct-plagiarism.pdf"
+    suspect_path = "suspect_docs/suspicious-document10994.txt"
 
     suspect_text = ocr_pdf(suspect_path)
     suspect_chunks = chunk_text_by_sentence(suspect_text)
