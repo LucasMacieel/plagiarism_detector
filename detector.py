@@ -4,223 +4,148 @@ from PIL import Image
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-import os
 import cv2
 import spacy
 
-# python -m spacy download en_core_web_sm
-nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "tagger", "attribute_ruler"])
+# --- Global Variables & Model Loading ---
+NLP = None
+try:
+    # Disable components we don't need for sentence splitting for better performance.
+    NLP = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "tagger", "attribute_ruler"])
+    print("spaCy model 'en_core_web_sm' loaded successfully.")
+except OSError:
+    print("spaCy model 'en_core_web_sm' not found.")
+    print("Please run: python -m spacy download en_core_web_sm")
+    NLP = None
+
 
 # --- 1. Document Processing and OCR ---
+def preprocess_image(pil_img):
+    """Converts a PIL image to OpenCV format and applies preprocessing for better OCR."""
+    try:
+        # Convert PIL image to OpenCV format (grayscale)
+        img = np.array(pil_img)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+        # Apply adaptive thresholding to create a binary image
+        img = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                    cv2.THRESH_BINARY, 11, 2)
+
+        return Image.fromarray(img)
+    except Exception as e:
+        print(f"Image preprocessing failed: {e}")
+        return pil_img  # Return original image if preprocessing fails
+
+
 def ocr_pdf(pdf_path):
-    """Performs OCR on each page of a PDF."""
+    """Performs OCR on each page of a PDF and returns the extracted text."""
     text = ""
+    print(f"Starting OCR for {pdf_path}...")
     try:
         doc = fitz.open(pdf_path)
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
-            pix = page.get_pixmap()
+            pix = page.get_pixmap(dpi=300)  # Render page at higher DPI for better quality
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             preprocessed_img = preprocess_image(img)
-            text += pytesseract.image_to_string(preprocessed_img)
+            # Use Tesseract to extract text
+            text += pytesseract.image_to_string(preprocessed_img) + "\n"
         doc.close()
+        print(f"OCR completed for {pdf_path}.")
     except Exception as e:
         print(f"OCR failed for {pdf_path}. Error: {e}")
     return text
 
 
-# --- 2. Text Preprocessing (Sentence-Aware) ---
-def transformer_sentence_split(text):
-    text = text.replace('\n', ' ')
-    doc = nlp(text)
-    return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-
-
-def chunk_text_by_sentence(text, target_words_per_chunk=50, max_sentences_per_chunk=5):
+# --- 2. Text Preprocessing (Sentence-Aware Chunking) ---
+def chunk_text_by_sentence(text, target_words_per_chunk=75, max_sentences_per_chunk=5):
     """
-    Splits text into sentences and then groups them into chunks.
-    Handles very long texts by processing them in batches to stay within spaCy's memory limits.
+    Splits text into sentences and then groups them into chunks for embedding.
     """
-    # spaCy's default character limit.
-    spacy_max_length = 1000000
-    all_sentences = []
-
-    # If the text is smaller than the limit, process it directly
-    if len(text) < spacy_max_length:
-        doc = nlp(text)
-        all_sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-    else:
-        # If the text is too long, split it into smaller "pre-chunks"
-        print(f"  -> Text is too long ({len(text)} chars). Processing in batches.")
-        start = 0
-        while start < len(text):
-            # Process text in chunks of size spacy_max_length
-            chunk = text[start: start + spacy_max_length]
-
-            # Ensure we don't split a word at the end of the chunk
-            # Find the last space to make a clean break
-            if len(chunk) == spacy_max_length and start + spacy_max_length < len(text):
-                last_space = chunk.rfind(' ')
-                if last_space != -1:
-                    chunk = chunk[:last_space]
-
-            doc = nlp(chunk)
-            chunk_sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-            all_sentences.extend(chunk_sentences)
-
-            # Move the starting point for the next chunk
-            start += len(chunk)
-
-    # Now, group the collected sentences into the final chunks for plagiarism detection
-    if not all_sentences:
+    if not NLP:
+        print("spaCy model is not available. Cannot chunk text.")
+        return []
+    if not text or not text.strip():
         return []
 
-    # The logic for grouping sentences remains the same
-    def determine_sentences_per_chunk(sentences, target, max_sentences):
-        if not sentences: return 1
-        total_words = sum(len(s.split()) for s in sentences)
-        avg_words = total_words / len(sentences)
-        estimated = target / max(avg_words, 1)
-        return max(1, min(int(round(estimated)), max_sentences))
+    # Replace newlines with spaces to help sentence boundary detection.
+    text = text.replace('\n', ' ').strip()
+    doc = NLP(text)
+    sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
 
-    sentences_per_chunk = determine_sentences_per_chunk(all_sentences, target_words_per_chunk, max_sentences_per_chunk)
-    chunks = [" ".join(all_sentences[i:i + sentences_per_chunk]) for i in
-              range(0, len(all_sentences), sentences_per_chunk)]
+    if not sentences:
+        return []
+
+    # Group sentences into chunks
+    chunks = []
+    current_chunk = []
+    for sentence in sentences:
+        current_chunk.append(sentence)
+        word_count = sum(len(s.split()) for s in current_chunk)
+
+        # Create a new chunk if the current one is large enough or has enough sentences
+        if word_count >= target_words_per_chunk or len(current_chunk) >= max_sentences_per_chunk:
+            chunks.append(" ".join(current_chunk))
+            current_chunk = []
+
+    # Add any remaining sentences as the last chunk
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
 
     return chunks
 
 
 # --- 3. Sentence-Transformers Embeddings ---
 class SentenceEmbedder:
+    """A wrapper class for the SentenceTransformer model."""
+
     def __init__(self, model_name='all-MiniLM-L6-v2'):
-        """
-        Initializes the SentenceTransformer model.
-        """
+        """Initializes the SentenceTransformer model."""
         self.model = SentenceTransformer(model_name)
-        print(f"SentenceTransformer model '{model_name}' loaded.")
+        print(f"SentenceTransformer model '{model_name}' loaded and ready.")
 
     def get_embeddings(self, text_chunks):
-        """
-        Generates embeddings for a list of text chunks.
-        """
-        embeddings = self.model.encode(text_chunks, show_progress_bar=True)
-        return np.array(embeddings)
+        """Generates embeddings for a list of text chunks."""
+        if not text_chunks:
+            return np.array([])
+        embeddings = self.model.encode(text_chunks, show_progress_bar=False)
+        return np.array(embeddings).astype('float32')
 
 
 # --- 4. Faiss Similarity Search ---
 class SimilaritySearch:
+    """A wrapper for Faiss index and search functionality."""
+
     def __init__(self, dimension):
+        """Initializes the Faiss index."""
         self.index = faiss.IndexFlatL2(dimension)
-        self.chunk_map = []
+        self.chunk_map = []  # To map index results back to text
 
     def build_index(self, embeddings, chunks, doc_name):
-        """
-        Adds embeddings to the Faiss index and maps them to their original text and document.
-        """
+        """Adds embeddings to the Faiss index."""
         if embeddings.ndim == 1:
             embeddings = np.expand_dims(embeddings, axis=0)
 
-        faiss.normalize_L2(embeddings)  # Normalize vectors for cosine similarity
+        if embeddings.shape[0] == 0:
+            return
+
+        # Faiss requires L2 normalized vectors for this calculation to be equivalent to cosine similarity
+        faiss.normalize_L2(embeddings)
         self.index.add(embeddings)
+
+        # Store the original text chunk and its document name
         for chunk in chunks:
             self.chunk_map.append({'doc': doc_name, 'chunk': chunk})
 
     def search(self, query_embeddings, k=1):
-        """
-        Searches the index for the most similar vectors.
-        """
+        """Searches the index for the most similar vectors."""
         if query_embeddings.ndim == 1:
             query_embeddings = np.expand_dims(query_embeddings, axis=0)
 
-        faiss.normalize_L2(query_embeddings)  # Normalize query vector
+        if query_embeddings.shape[0] == 0:
+            return np.array([]), np.array([])
+
+        # Normalize the query vectors as well
+        faiss.normalize_L2(query_embeddings)
         distances, indices = self.index.search(query_embeddings, k)
         return distances, indices
-
-
-def preprocess_image(pil_img):
-    """Convert PIL image to OpenCV format and apply preprocessing."""
-    # Convert PIL image to OpenCV format
-    img = np.array(pil_img)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-    # Resize to improve DPI (Dots Per Inch)
-    scale_percent = 150  # e.g., 150% zoom
-    width = int(img.shape[1] * scale_percent / 100)
-    height = int(img.shape[0] * scale_percent / 100)
-    img = cv2.resize(img, (width, height), interpolation=cv2.INTER_CUBIC)
-
-    # Apply adaptive thresholding
-    img = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
-                                cv2.THRESH_BINARY, 15, 10)
-
-    # Optional: apply denoising
-    img = cv2.fastNlMeansDenoising(img, h=30)
-
-    return Image.fromarray(img)
-
-
-# --- Main Prototype ---
-
-def main():
-    # --- Setup ---
-
-    print("Initializing Sentence Embedder...")
-    embedder = SentenceEmbedder(model_name='all-MiniLM-L6-v2')
-    similarity_searcher = SimilaritySearch(384)
-
-    # --- Indexing Source Documents ---
-    print("\n--- Indexing Source Documents ---")
-    source_doc_path = "source_docs/source-document01474.txt"
-    print(f"Processing {source_doc_path}...")
-    source_text = ocr_pdf(source_doc_path) if source_doc_path.endswith(".pdf") else open(source_doc_path).read()
-    chunks = chunk_text_by_sentence(source_text)
-    if chunks:
-        embeddings = embedder.get_embeddings(chunks)
-        similarity_searcher.build_index(embeddings, chunks, os.path.basename(source_doc_path))
-
-    print(f"\nIndexed {similarity_searcher.index.ntotal} chunks from {source_doc_path}.")
-
-    # --- Checking a Suspect Document ---
-    print("\n--- Checking Suspect Document for Plagiarism ---")
-    suspect_path = "suspect_docs/suspicious-document10994.txt"
-
-    suspect_text = ocr_pdf(suspect_path)
-    suspect_chunks = chunk_text_by_sentence(suspect_text)
-
-    if not suspect_chunks:
-        print("No text could be extracted from the suspect document.")
-        return
-
-    suspect_embeddings = embedder.get_embeddings(suspect_chunks)
-
-    # --- Perform Similarity Search ---
-    print("\nPerforming similarity search...")
-    distances, indices = similarity_searcher.search(suspect_embeddings, k=1)
-
-    # --- Report Findings ---
-    print("\n--- Plagiarism Detection Report ---")
-    print("=" * 50)
-    # L2 distance threshold for normalized vectors. A smaller value means higher similarity.
-    threshold = 0.6
-    similar_chunks = []
-    for i, chunk in enumerate(suspect_chunks):
-        dist = distances[i][0]
-
-        if dist < threshold:
-            idx = indices[i][0]
-            similar_chunk_info = similarity_searcher.chunk_map[idx]
-            similar_chunks.append(similar_chunk_info)
-            # For normalized vectors, cosine similarity = 1 - (L2_distance^2 / 2)
-            cosine_similarity = 1 - (dist ** 2 / 2)
-
-            print(f"Potential Plagiarism Found!\n")
-            print(f"  Suspect Chunk:      '{chunk}'")
-            print(f"  Source Document:    '{similar_chunk_info['doc']}'")
-            print(f"  Similar Source Chunk: '{similar_chunk_info['chunk']}'")
-            print(f"  Cosine Similarity:  {cosine_similarity:.4f} (L2 Distance: {dist:.4f})\n")
-    if len(similar_chunks) == 0:
-        print("No Plagiarism Found!\n")
-
-
-if __name__ == '__main__':
-    main()

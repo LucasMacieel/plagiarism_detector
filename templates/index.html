@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plagiarism Detection Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-file-input::-webkit-file-upload-button {
+            visibility: hidden;
+        }
+        .custom-file-input::before {
+            content: 'Select file';
+            display: inline-block;
+            background: #1F2937; /* bg-gray-800 */
+            color: white;
+            border-radius: 0.25rem;
+            padding: 0.5rem 1rem;
+            outline: none;
+            white-space: nowrap;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .custom-file-input:hover::before {
+            background: #374151; /* bg-gray-700 */
+        }
+        .custom-file-input:active::before {
+            background: #4B5563; /* bg-gray-600 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Plagiarism Detection Tool</h1>
+            <p class="text-lg text-gray-600 mt-2">Upload a source and a suspect document to check for similarities.</p>
+        </header>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="mb-6">
+              {% for category, message in messages %}
+                <div class="p-4 rounded-md {{ 'bg-red-100 text-red-700' if category == 'error' else 'bg-yellow-100 text-yellow-700' }}" role="alert">
+                  <span class="font-medium">{{ message }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <!-- Upload Form -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <form id="upload-form" action="/" method="post" enctype="multipart/form-data">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- Source Document -->
+                    <div>
+                        <label for="source_file" class="block text-sm font-medium text-gray-700 mb-2">Source Document (.pdf, .txt)</label>
+                        <div class="flex items-center">
+                           <input type="file" name="source_file" id="source_file" class="custom-file-input text-transparent" required>
+                           <span id="source-file-name" class="ml-3 text-gray-500 truncate">No file chosen</span>
+                        </div>
+                    </div>
+                    <!-- Suspect Document -->
+                    <div>
+                        <label for="suspect_file" class="block text-sm font-medium text-gray-700 mb-2">Suspect Document (.pdf, .txt)</label>
+                        <div class="flex items-center">
+                           <input type="file" name="suspect_file" id="suspect_file" class="custom-file-input text-transparent" required>
+                           <span id="suspect-file-name" class="ml-3 text-gray-500 truncate">No file chosen</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 text-center">
+                    <button type="submit" id="submit-button" class="w-full md:w-auto inline-flex justify-center items-center px-8 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        Check for Plagiarism
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="hidden text-center my-10">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <p class="mt-4 text-gray-600 font-semibold">Analyzing documents... This might take a few moments.</p>
+        </div>
+
+
+        <!-- Results Section -->
+        {% if results is not none %}
+        <div id="results-section" class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold text-gray-900 border-b pb-3 mb-6">Analysis Report</h2>
+            {% if results %}
+                <p class="mb-6 text-gray-700">Found <span class="font-bold">{{ results|length }}</span> potentially plagiarized section(s) with a similarity score above 85%.</p>
+                <div class="space-y-6">
+                    {% for result in results %}
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                        <div class="flex justify-between items-start mb-3">
+                             <h3 class="text-lg font-semibold text-indigo-700">Potential Match Found</h3>
+                             <span class="text-sm font-bold text-white bg-red-500 px-3 py-1 rounded-full">{{ result.similarity }} similar</span>
+                        </div>
+
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">From Suspect Document:</label>
+                                <p class="text-sm bg-red-50 border border-red-200 rounded p-3 text-gray-800 italic">"{{ result.suspect_chunk }}"</p>
+                            </div>
+                             <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Matches Source (<span class="font-mono text-xs">{{ result.source_doc }}</span>):</label>
+                                <p class="text-sm bg-green-50 border border-green-200 rounded p-3 text-gray-800 italic">"{{ result.source_chunk }}"</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-8">
+                    <svg class="mx-auto h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="mt-2 text-lg font-medium text-gray-900">No Plagiarism Detected</h3>
+                    <p class="mt-1 text-sm text-gray-500">The suspect document appears to be original based on the provided source.</p>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        document.getElementById('source_file').addEventListener('change', function(e){
+            var fileName = e.target.files[0] ? e.target.files[0].name : 'No file chosen';
+            document.getElementById('source-file-name').textContent = fileName;
+        });
+        document.getElementById('suspect_file').addEventListener('change', function(e){
+            var fileName = e.target.files[0] ? e.target.files[0].name : 'No file chosen';
+            document.getElementById('suspect-file-name').textContent = fileName;
+        });
+
+        document.getElementById('upload-form').addEventListener('submit', function() {
+            document.getElementById('submit-button').classList.add('hidden');
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            // Hide previous results while loading new ones
+            const resultsSection = document.getElementById('results-section');
+            if (resultsSection) {
+                resultsSection.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
