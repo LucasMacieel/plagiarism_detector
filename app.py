@@ -120,7 +120,7 @@ def upload_and_check():
             similarity_searcher = SimilaritySearch(dimension=embedding_dim)
 
             # --- Continue with the plagiarism check process (unchanged) ---
-            source_chunks = chunk_text_by_sentence(source_text)
+            source_chunks = chunk_text_by_sentence(source_text, lang_code=lang_code)
             if source_chunks:
                 source_embeddings = embedder.get_embeddings(source_chunks)
                 similarity_searcher.build_index(source_embeddings, source_chunks, source_file.filename)
@@ -128,7 +128,7 @@ def upload_and_check():
             suspect_text = ocr_pdf(suspect_path) if suspect_path.endswith(".pdf") else open(suspect_path,
                                                                                             encoding='utf-8',
                                                                                             errors='ignore').read()
-            suspect_chunks = chunk_text_by_sentence(suspect_text)
+            suspect_chunks = chunk_text_by_sentence(suspect_text, lang_code=lang_code)
 
             if not suspect_chunks:
                 flash('Could not extract text from the suspect document.', 'warning')

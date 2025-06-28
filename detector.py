@@ -7,16 +7,29 @@ import cv2
 import spacy
 
 # --- Global Variables & Model Loading ---
-NLP = None
-try:
-    # Disable components we don't need for sentence splitting for better performance.
-    NLP = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "tagger", "attribute_ruler"])
-    print("spaCy model 'en_core_web_sm' loaded successfully.")
-except OSError:
-    print("spaCy model 'en_core_web_sm' not found.")
-    print("Please run: python -m spacy download en_core_web_sm")
-    NLP = None
+def load_spacy_models():
+    """Loads English and Portuguese spaCy models into a dictionary."""
+    print("--- Pre-loading spaCy models for sentence segmentation ---")
+    models = {}
+    try:
+        # Load English model
+        print("Loading spaCy model: en_core_web_sm...")
+        models['en'] = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "tagger", "attribute_ruler"])
+        print("'en_core_web_sm' loaded successfully.")
 
+        # Load Portuguese model
+        print("Loading spaCy model: pt_core_news_sm...")
+        models['pt'] = spacy.load("pt_core_news_sm", disable=["ner", "lemmatizer", "tagger", "attribute_ruler"])
+        print("'pt_core_news_sm' loaded successfully.")
+
+    except OSError as e:
+        print(f"Error loading a spaCy model: {e}")
+        print("Please run 'python -m spacy download en_core_web_sm' and 'python -m spacy download pt_core_news_sm'")
+
+    print("--- spaCy models loaded. ---")
+    return models
+
+PRELOADED_SPACY_MODELS = load_spacy_models()
 
 # --- 1. Document Processing and OCR ---
 def preprocess_image(pil_img):
@@ -57,11 +70,13 @@ def ocr_pdf(pdf_path):
 
 
 # --- 2. Text Preprocessing (Sentence-Aware Chunking) ---
-def chunk_text_by_sentence(text, target_words_per_chunk=75, max_sentences_per_chunk=5):
+def chunk_text_by_sentence(text, target_words_per_chunk=75, max_sentences_per_chunk=5, lang_code='en'):
     """
     Splits text into sentences and then groups them into chunks for embedding.
     """
-    if not NLP:
+    sentence_segmentation_model = PRELOADED_SPACY_MODELS.get(lang_code)
+
+    if not sentence_segmentation_model:
         print("spaCy model is not available. Cannot chunk text.")
         return []
     if not text or not text.strip():
@@ -69,7 +84,7 @@ def chunk_text_by_sentence(text, target_words_per_chunk=75, max_sentences_per_ch
 
     # Replace newlines with spaces to help sentence boundary detection.
     text = text.replace('\n', ' ').strip()
-    doc = NLP(text)
+    doc = sentence_segmentation_model(text)
     sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
 
     if not sentences:
