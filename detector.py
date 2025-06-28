@@ -49,7 +49,7 @@ def ocr_pdf(pdf_path):
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             preprocessed_img = preprocess_image(img)
             # Use Tesseract to extract text
-            text += pytesseract.image_to_string(preprocessed_img) + "\n"
+            text += pytesseract.image_to_string(preprocessed_img, lang='por') + "\n"
         doc.close()
         print(f"OCR completed for {pdf_path}.")
     except Exception as e:
@@ -99,10 +99,11 @@ def chunk_text_by_sentence(text, target_words_per_chunk=75, max_sentences_per_ch
 class SentenceEmbedder:
     """A wrapper class for the SentenceTransformer model."""
 
-    def __init__(self, model_name='all-MiniLM-L6-v2'):
-        """Initializes the SentenceTransformer model."""
-        self.model = SentenceTransformer(model_name)
-        print(f"SentenceTransformer model '{model_name}' loaded and ready.")
+    def __init__(self, preloaded_model):
+        """
+        Initializes the embedder with a pre-loaded model object.
+        """
+        self.model = preloaded_model
 
     def get_embeddings(self, text_chunks):
         """Generates embeddings for a list of text chunks."""
