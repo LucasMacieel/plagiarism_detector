@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,107 +10,106 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body class="bg-gray-900 text-gray-200">
-    <div class="container mx-auto px-4 py-8 max-w-4xl flex flex-col min-h-screen">
+<body class="bg-gray-900 text-gray-200 antialiased">
+    <div class="container mx-auto px-4 py-8 max-w-5xl flex flex-col min-h-screen">
         <main class="flex-grow">
-            <header class="text-center mb-8">
-                <h1 class="text-4xl font-bold text-white">Plagiarism Detection Tool</h1>
-                <p class="text-lg text-gray-400 mt-2">Upload a source and a suspect document to check for similarities.</p>
+            <header class="text-center mb-10">
+                <h1 class="text-4xl md:text-5xl font-bold text-white">Hybrid Plagiarism Detection</h1>
+                <p class="text-lg text-gray-400 mt-3 max-w-2xl mx-auto">Combining semantic and keyword analysis to detect potential plagiarism.</p>
             </header>
+
+            <!-- Flash Messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
               {% if messages %}
-                <div class="mb-6">
+                <div class="mb-6" aria-live="polite">
                   {% for category, message in messages %}
-                    <div class="p-4 rounded-md {{ 'bg-red-900/80 text-red-200 border border-red-700' if category == 'error' else 'bg-yellow-900/80 text-yellow-200 border border-yellow-700' }}" role="alert">
+                    <div class="p-4 rounded-md flex items-start {{ 'bg-red-900/80 text-red-200 border border-red-700' if category == 'error' else 'bg-indigo-900/50 text-indigo-200 border border-indigo-700' }}" role="alert">
+                      <svg class="h-6 w-6 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       <span class="font-medium">{{ message }}</span>
                     </div>
                   {% endfor %}
                 </div>
               {% endif %}
             {% endwith %}
-            <div class="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-md mb-8">
+
+            <!-- Upload Form (Unchanged) -->
+            <div class="bg-gray-800 border border-gray-700/50 p-6 md:p-8 rounded-xl shadow-lg mb-10">
                 <form id="upload-form" action="/" method="post" enctype="multipart/form-data">
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="source_file" class="block text-sm font-medium text-gray-300 mb-2">Source Document (.pdf, .txt)</label>
-                            <div class="flex items-center">
-                               <input type="file" name="source_file" id="source_file" class="custom-file-input w-[115px] text-transparent" required>
-                               <span id="source-file-name" class="ml-1 text-gray-400 truncate" title="No file chosen">No file chosen</span>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="suspect_file" class="block text-sm font-medium text-gray-300 mb-2">Suspect Document (.pdf, .txt)</label>
-                            <div class="flex items-center">
-                               <input type="file" name="suspect_file" id="suspect_file" class="custom-file-input w-[115px] text-transparent" required>
-                               <span id="suspect-file-name" class="ml-1 text-gray-400 truncate" title="No file chosen">No file chosen</span>
-                            </div>
-                        </div>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div class="space-y-3"><label class="block text-base font-medium text-gray-300">Source Document (.pdf, .txt)</label><div class="flex items-center"><input type="file" name="source_file" id="source_file" class="custom-file-input w-[115px] text-transparent" required><span id="source-file-name" class="ml-1 text-gray-400 truncate" title="No file chosen">No file chosen</span></div></div>
+                        <div class="space-y-3"><label class="block text-base font-medium text-gray-300">Suspect Document (.pdf, .txt)</label><div class="flex items-center"><input type="file" name="suspect_file" id="suspect_file" class="custom-file-input w-[115px] text-transparent" required><span id="suspect-file-name" class="ml-1 text-gray-400 truncate" title="No file chosen">No file chosen</span></div></div>
                     </div>
-                    <div class="mt-6 text-center">
-                        <button type="submit" id="submit-button" class="w-full md:w-auto inline-flex justify-center items-center px-8 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transition-colors">
-                            Check for Plagiarism
-                        </button>
-                    </div>
+                    <div class="mt-8 border-t border-gray-700/50 pt-6 text-center"><button type="submit" id="submit-button" class="w-full sm:w-auto inline-flex justify-center items-center px-10 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transition-all duration-150 ease-in-out transform hover:scale-105">Check for Plagiarism</button></div>
                 </form>
             </div>
-            <div id="loading-spinner" class="hidden text-center my-10">
-                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-400"></div>
-                <p class="mt-4 text-gray-400 font-semibold">Analyzing documents... This might take a few moments.</p>
+
+            <!-- Loading Spinner (Unchanged) -->
+            <div id="loading-spinner" class="hidden text-center my-12" aria-live="assertive">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-400"></div><p class="mt-4 text-gray-400 font-semibold text-lg">Analyzing documents...</p>
             </div>
+
+            <!-- Results Section (UPDATED) -->
             {% if results is not none %}
-            <div id="results-section" class="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold text-white border-b border-gray-600 pb-3 mb-6">Analysis Report</h2>
+            <div id="results-section" class="bg-gray-800 border border-gray-700/50 p-6 md:p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-white border-b border-gray-700/50 pb-4 mb-6">Analysis Report</h2>
                 {% if results %}
-                    <p class="mb-6 text-gray-300">Found <span class="font-bold text-red-400">{{ results|length }}</span> potentially plagiarized section(s).</p>
-                    <div class="space-y-6">
+                    <p class="mb-8 text-gray-300">Found <span class="font-bold text-red-400">{{ results|length }}</span> section(s) with a high likelihood of plagiarism.</p>
+                    <div class="space-y-8">
                         {% for result in results %}
-                        <div class="border border-gray-700 rounded-lg p-4 bg-gray-900/50">
-                            <div class="flex justify-between items-start mb-3">
-                                 <h3 class="text-lg font-semibold text-indigo-400">Potential Match Found</h3>
-                                 <span class="text-sm font-bold text-white bg-red-600 px-3 py-1 rounded-full">{{ result.similarity }} similar</span>
+                        <div class="border border-gray-700 rounded-lg p-5 bg-gray-900/50 transform transition-all duration-300 hover:shadow-xl hover:border-indigo-500/50">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5">
+                                 <h3 class="text-xl font-semibold text-indigo-400 flex items-center">Potential Match</h3>
+                                 <div class="mt-3 sm:mt-0 flex items-center space-x-4 bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2">
+                                     <div class="text-center" title="Weighted average of semantic and keyword scores. Higher is more suspicious.">
+                                         <div class="text-xs text-gray-400">Hybrid Score</div>
+                                         <div class="text-lg font-bold text-red-400">{{ result.hybrid_score }}</div>
+                                     </div>
+                                     <div class="h-10 border-l border-gray-600"></div>
+                                     <div class="text-center" title="Similarity of meaning and context.">
+                                         <div class="text-xs text-gray-500">Semantic</div>
+                                         <div class="font-semibold text-gray-300">{{ result.semantic_score }}</div>
+                                     </div>
+                                     <div class="text-center" title="Overlap of important keywords.">
+                                         <div class="text-xs text-gray-500">Keyword</div>
+                                         <div class="font-semibold text-gray-300">{{ result.keyword_score }}</div>
+                                     </div>
+                                 </div>
                             </div>
 
-                            <div class="grid md:grid-cols-2 gap-4">
+                            <div class="grid md:grid-cols-2 gap-5 mt-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-400 mb-1">From Suspect Document:</label>
-                                    <p class="text-sm bg-red-900/40 border border-red-700 rounded p-3 text-red-200 italic">"{{ result.suspect_chunk }}"</p>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">From Suspect Document:</label>
+                                    <p class="text-base bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-200 italic leading-relaxed">"{{ result.suspect_chunk }}"</p>
                                 </div>
                                  <div>
-                                    <label class="block text-sm font-medium text-gray-400 mb-1">Matches Source (<span class="font-mono text-xs">{{ result.source_doc }}</span>):</label>
-                                    <p class="text-sm bg-green-900/40 border border-green-700 rounded p-3 text-green-200 italic">"{{ result.source_chunk }}"</p>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">Matches Source (<span class="font-mono text-xs">{{ result.source_doc }}</span>):</label>
+                                    <p class="text-base bg-green-900/20 border border-green-700/30 rounded-lg p-4 text-green-200 italic leading-relaxed">"{{ result.source_chunk }}"</p>
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <div class="text-center py-8">
-                        <svg class="mx-auto h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <h3 class="mt-2 text-lg font-medium text-gray-200">No Plagiarism Detected</h3>
-                        <p class="mt-1 text-sm text-gray-400">The suspect document appears to be original based on the provided source.</p>
+                    <div class="text-center py-10">
+                        <svg class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <h3 class="mt-4 text-2xl font-medium text-gray-100">No Plagiarism Detected</h3>
+                        <p class="mt-2 text-base text-gray-400">The suspect document appears to be original based on the provided source.</p>
                     </div>
                 {% endif %}
             </div>
             {% endif %}
         </main>
 
-        <!-- Footer Section -->
-        <footer class="text-center mt-auto pt-8 pb-4">
-            <div class="border-t border-gray-700 pt-6 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-4">
+        <footer class="text-center mt-auto pt-10 pb-4">
+            <div class="border-t border-gray-700/50 pt-6 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-4">
                  <p class="text-sm text-gray-500">&copy; 2025 Plagiarism Detection Project</p>
                  <a href="https://github.com/LucasMacieel/plagiarism_detector" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-sm text-gray-400 hover:text-indigo-400 transition-colors">
-                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.168 6.839 9.492.5.092.682-.217.682-.482 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.031-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.03 1.595 1.03 2.688 0 3.848-2.338 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.001 10.001 0 0022 12c0-5.523-4.477-10-10-10z" clip-rule="evenodd" />
-                    </svg>
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.168 6.839 9.492.5.092.682-.217.682-.482 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.031-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.03 1.595 1.03 2.688 0 3.848-2.338 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.001 10.001 0 0022 12c0-5.523-4.477-10-10-10z" clip-rule="evenodd"></path></svg>
                     View on GitHub
                  </a>
             </div>
         </footer>
     </div>
-
-    <!-- The existing JavaScript will work perfectly with this new HTML structure -->
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
