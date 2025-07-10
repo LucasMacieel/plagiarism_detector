@@ -1,5 +1,9 @@
 # Hybrid Plagiarism Detection System
 
+<img width="1318" height="502" alt="image" src="https://github.com/user-attachments/assets/e455c131-0007-4c4d-aa3b-f9128df6d478" />
+<img width="1167" height="845" alt="image" src="https://github.com/user-attachments/assets/437579c7-22cb-462e-b587-df19b359dd6a" />
+
+
 A sophisticated, multilingual plagiarism detection tool built with Python and Flask. This application goes beyond simple text matching by implementing a hybrid similarity analysis, combining cutting-edge semantic search with traditional keyword analysis to provide a more accurate and nuanced plagiarism score.
 
 The system is designed to handle PDF and TXT documents in both English and Portuguese, dynamically selecting the optimal language models for each task.
