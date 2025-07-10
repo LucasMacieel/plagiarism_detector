@@ -5,8 +5,6 @@ import numpy as np
 import pytesseract
 import spacy
 from PIL import Image
-from sentence_transformers import SentenceTransformer
-# --- New import for keyword extraction ---
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
