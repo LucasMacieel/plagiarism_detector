@@ -93,8 +93,8 @@ macOS (Homebrew): brew install tesseract tesseract-lang
 Linux (Debian/Ubuntu): sudo apt-get install tesseract-ocr tesseract-ocr-por tesseract-ocr-eng
 
 2. Clone the Repository
-git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-cd your-repo-name
+git clone [https://github.com/your-username/your-repo-name.git](https://github.com/LucasMacieel/plagiarism_detector.git)
+cd plagiarism_detector
 
 3. Set Up a Virtual Environment
 It is highly recommended to use a virtual environment.
