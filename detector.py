@@ -8,7 +8,6 @@ from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
-# --- Pre-load spaCy models efficiently ---
 def load_spacy_models():
     """Loads English and Portuguese spaCy models into a dictionary."""
     print("--- Pre-loading spaCy models for sentence segmentation ---")
@@ -28,7 +27,7 @@ def load_spacy_models():
 
 PRELOADED_SPACY_MODELS = load_spacy_models()
 
-# --- Document Processing and OCR (Unchanged) ---
+# --- Document Processing and OCR ---
 def preprocess_image(pil_img):
     try:
         img = np.array(pil_img); img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
@@ -49,7 +48,7 @@ def ocr_pdf(pdf_path):
         print(f"OCR failed for {pdf_path}. Error: {e}")
     return text
 
-# --- Text Chunking (Now using preloaded models) ---
+# --- Text Chunking ---
 def chunk_text_by_sentence(text, lang_code, target_words_per_chunk=75, max_sentences_per_chunk=5):
     sentence_segmentation_model = PRELOADED_SPACY_MODELS.get(lang_code, PRELOADED_SPACY_MODELS.get('en'))
     if not sentence_segmentation_model:
@@ -69,10 +68,9 @@ def chunk_text_by_sentence(text, lang_code, target_words_per_chunk=75, max_sente
     if current_chunk: chunks.append(" ".join(current_chunk))
     return chunks
 
-# --- NEW: Keyword Extraction and Similarity ---
+# --- Keyword Extraction and Similarity ---
 class KeywordExtractor:
     def __init__(self, corpus):
-        # Note: Removed 'stop_words' to be language-agnostic.
         self.vectorizer = TfidfVectorizer(max_features=1000, lowercase=True)
         self.vectorizer.fit(corpus)
         self.feature_names = self.vectorizer.get_feature_names_out()
@@ -88,7 +86,7 @@ def calculate_jaccard_similarity(set1, set2):
     union = len(set1.union(set2))
     return intersection / union if union != 0 else 0.0
 
-# --- Embeddings and Faiss (Unchanged) ---
+# --- Embeddings and Faiss ---
 class SentenceEmbedder:
     def __init__(self, preloaded_model):
         self.model = preloaded_model

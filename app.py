@@ -5,7 +5,6 @@ from langdetect import detect, LangDetectException
 from sentence_transformers import SentenceTransformer
 from werkzeug.utils import secure_filename
 
-# Import all necessary classes and functions from our detector
 from detector import (
     SentenceEmbedder,
     SimilaritySearch,
@@ -104,13 +103,13 @@ def upload_and_check():
             distances, indices = similarity_searcher.search(suspect_embeddings, k=1)
 
             report_results = []
-            hybrid_threshold = 0.75  # Combined score threshold
+            hybrid_threshold = 0.75
 
             for i, suspect_chunk in enumerate(suspect_chunks):
                 dist = distances[i][0]
                 semantic_score = 1 - (dist ** 2 / 2)
 
-                if semantic_score > 0.65:  # Pre-filter for semantic relevance
+                if semantic_score > 0.65:
                     idx = indices[i][0]
                     source_chunk_info = similarity_searcher.chunk_map[idx]
                     source_chunk = source_chunk_info['chunk']
