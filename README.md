@@ -94,7 +94,6 @@ Linux (Debian/Ubuntu): sudo apt-get install tesseract-ocr tesseract-ocr-por tess
 
 2. Clone the Repository
 git clone https://github.com/LucasMacieel/plagiarism_detector.git
-cd plagiarism_detector
 
 3. Set Up a Virtual Environment
 It is highly recommended to use a virtual environment.
